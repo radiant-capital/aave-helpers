@@ -2,9 +2,12 @@
 pragma solidity ^0.8.12;
 
 import {ListingV2Engine as ListingEngine} from './libraries/ListingV2Engine.sol';
-import {RateV2Engine as RatingEngine} from './libraries/RateV2Engine.sol';
+import {CollateralV2Engine as CollateralEngine} from './libraries/CollateralV2Engine.sol';
+import {BorrowV2Engine as BorrowEngine} from './libraries/BorrowV2Engine.sol';
+import {RateV2Engine as RateEngine} from './libraries/RateV2Engine.sol';
 import {EngineFlags} from '../v3-config-engine/EngineFlags.sol';
 import './IAaveV2ConfigEngine.sol';
+import {Address} from 'solidity-utils/contracts/oz-common/Address.sol';
 
 /**
  * @dev Helper smart contract abstracting the complexity of changing rates configurations on Aave v2.
@@ -13,17 +16,17 @@ import './IAaveV2ConfigEngine.sol';
  * @author BGD Labs
  */
 contract AaveV2ConfigEngine is IAaveV2ConfigEngine {
-  struct AssetsConfig {
-    address[] ids;
-    IV2RateStrategyFactory.RateStrategyParams[] rates;
-  }
+  using Address for address;
 
   ILendingPool public immutable POOL;
   ILendingPoolConfigurator public immutable POOL_CONFIGURATOR;
-  IV2RateStrategyFactory public immutable RATE_STRATEGIES_FACTORY;
+  IV2RateStrategyFactory public immutable RATE_STRATEGY_FACTORY;
+  IAaveOracle public immutable ORACLE;
   address public immutable ATOKEN_IMPL;
   address public immutable VTOKEN_IMPL;
   address public immutable STOKEN_IMPL;
+  address public immutable REWARDS_CONTROLLER;
+  address public immutable COLLECTOR;
 
   address public immutable BORROW_ENGINE;
   address public immutable COLLATERAL_ENGINE;
@@ -58,7 +61,16 @@ contract AaveV2ConfigEngine is IAaveV2ConfigEngine {
     STOKEN_IMPL = sTokenImpl;
     POOL = engineConstants.pool;
     POOL_CONFIGURATOR = engineConstants.poolConfigurator;
-    RATE_STRATEGIES_FACTORY = rateStrategiesFactory;
+    ORACLE = engineConstants.oracle;
+    REWARDS_CONTROLLER = engineConstants.rewardsController;
+    COLLECTOR = engineConstants.collector;
+    RATE_STRATEGY_FACTORY = engineConstants.ratesStrategyFactory;
+
+    BORROW_ENGINE = engineLibraries.borrowEngine;
+    COLLATERAL_ENGINE = engineLibraries.collateralEngine;
+    LISTING_ENGINE = engineLibraries.listingEngine;
+    PRICE_FEED_ENGINE = engineLibraries.priceFeedEngine;
+    RATE_ENGINE = engineLibraries.rateEngine;
   }
 
   /// @inheritdoc IAaveV2ConfigEngine

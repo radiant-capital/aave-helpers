@@ -196,7 +196,31 @@ interface IAaveV2ConfigEngine {
    */
   function updateRateStrategies(RateStrategyUpdate[] memory updates) external;
 
-  function RATE_STRATEGIES_FACTORY() external view returns (IV2RateStrategyFactory);
+  function RATE_STRATEGY_FACTORY() external view returns (IV2RateStrategyFactory);
+
+  function POOL() external view returns (ILendingPool);
 
   function POOL_CONFIGURATOR() external view returns (ILendingPoolConfigurator);
+
+  function ORACLE() external view returns (IAaveOracle);
+
+  function ATOKEN_IMPL() external view returns (address);
+
+  function VTOKEN_IMPL() external view returns (address);
+
+  function STOKEN_IMPL() external view returns (address);
+
+  function REWARDS_CONTROLLER() external view returns (address);
+
+  function COLLECTOR() external view returns (address);
+
+  function BORROW_ENGINE() external view returns (address);
+
+  function COLLATERAL_ENGINE() external view returns (address);
+
+  function LISTING_ENGINE() external view returns (address);
+
+  function PRICE_FEED_ENGINE() external view returns (address);
+
+  function RATE_ENGINE() external view returns (address);
 }
