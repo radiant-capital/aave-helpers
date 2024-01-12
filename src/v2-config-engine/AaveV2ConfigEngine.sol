@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.12;
 
+import {ListingV2Engine as ListingEngine} from './libraries/ListingV2Engine.sol';
+import {RateV2Engine as RatingEngine} from './libraries/RateV2Engine.sol';
 import {EngineFlags} from '../v3-config-engine/EngineFlags.sol';
 import './IAaveV2ConfigEngine.sol';
 
@@ -16,87 +18,115 @@ contract AaveV2ConfigEngine is IAaveV2ConfigEngine {
     IV2RateStrategyFactory.RateStrategyParams[] rates;
   }
 
+  ILendingPool public immutable POOL;
   ILendingPoolConfigurator public immutable POOL_CONFIGURATOR;
   IV2RateStrategyFactory public immutable RATE_STRATEGIES_FACTORY;
+  address public immutable ATOKEN_IMPL;
+  address public immutable VTOKEN_IMPL;
+  address public immutable STOKEN_IMPL;
 
-  constructor(ILendingPoolConfigurator configurator, IV2RateStrategyFactory rateStrategiesFactory) {
-    require(address(configurator) != address(0), 'ONLY_NONZERO_CONFIGURATOR');
-    require(address(rateStrategiesFactory) != address(0), 'ONLY_NONZERO_RATES_FACTORY');
+  address public immutable BORROW_ENGINE;
+  address public immutable COLLATERAL_ENGINE;
+  address public immutable LISTING_ENGINE;
+  address public immutable PRICE_FEED_ENGINE;
+  address public immutable RATE_ENGINE;
 
-    POOL_CONFIGURATOR = configurator;
+  constructor(
+    address aTokenImpl,
+    address vTokenImpl,
+    address sTokenImpl,
+    EngineConstants memory engineConstants,
+    EngineLibraries memory engineLibraries
+  ) {
+    require(
+      address(engineConstants.pool) != address(0) &&
+        address(engineConstants.poolConfigurator) != address(0) &&
+        address(engineConstants.ratesStrategyFactory) != address(0) &&
+        address(engineConstants.oracle) != address(0) &&
+        engineConstants.rewardsController != address(0) &&
+        engineConstants.collector != address(0),
+      'ONLY_NONZERO_ENGINE_CONSTANTS'
+    );
+
+    require(
+      aTokenImpl != address(0) && vTokenImpl != address(0) && sTokenImpl != address(0),
+      'ONLY_NONZERO_TOKEN_IMPLS'
+    );
+
+    ATOKEN_IMPL = aTokenImpl;
+    VTOKEN_IMPL = vTokenImpl;
+    STOKEN_IMPL = sTokenImpl;
+    POOL = engineConstants.pool;
+    POOL_CONFIGURATOR = engineConstants.poolConfigurator;
     RATE_STRATEGIES_FACTORY = rateStrategiesFactory;
   }
 
   /// @inheritdoc IAaveV2ConfigEngine
+  function listAssets(PoolContext calldata context, ListingV2[] calldata listings) external {
+    require(listings.length != 0, 'AT_LEAST_ONE_ASSET_REQUIRED');
+
+    ListingWithCustomImpl[] memory customListings = new ListingWithCustomImpl[](listings.length);
+    for (uint256 i = 0; i < listings.length; i++) {
+      customListings[i] = ListingWithCustomImpl({
+        base: listings[i],
+        implementations: TokenImplementations({
+          aToken: ATOKEN_IMPL,
+          vToken: VTOKEN_IMPL,
+          sToken: STOKEN_IMPL
+        })
+      });
+    }
+
+    listAssetsCustom(context, customListings);
+  }
+
+  /// @inheritdoc IAaveV2ConfigEngine
+  function listAssetsCustom(
+    PoolContext calldata context,
+    ListingWithCustomImpl[] memory listings
+  ) public {
+    LISTING_ENGINE.functionDelegateCall(
+      abi.encodeWithSelector(
+        ListingEngine.executeCustomAssetListing.selector,
+        context,
+        _getEngineConstants(),
+        _getEngineLibraries(),
+        listings
+      )
+    );
+  }
+
+  /// @inheritdoc IAaveV2ConfigEngine
   function updateRateStrategies(RateStrategyUpdate[] memory updates) public {
-    require(updates.length != 0, 'AT_LEAST_ONE_UPDATE_REQUIRED');
-
-    AssetsConfig memory configs = _repackRatesUpdate(updates);
-
-    _configRateStrategies(configs.ids, configs.rates);
+    RATE_ENGINE.functionDelegateCall(
+      abi.encodeWithSelector(
+        RateEngine.executeRateStrategiesUpdate.selector,
+        _getEngineConstants(),
+        updates
+      )
+    );
   }
 
-  function _configRateStrategies(
-    address[] memory ids,
-    IV2RateStrategyFactory.RateStrategyParams[] memory strategiesParams
-  ) internal {
-    for (uint256 i = 0; i < strategiesParams.length; i++) {
-      if (
-        strategiesParams[i].variableRateSlope1 == EngineFlags.KEEP_CURRENT ||
-        strategiesParams[i].variableRateSlope2 == EngineFlags.KEEP_CURRENT ||
-        strategiesParams[i].optimalUtilizationRate == EngineFlags.KEEP_CURRENT ||
-        strategiesParams[i].baseVariableBorrowRate == EngineFlags.KEEP_CURRENT ||
-        strategiesParams[i].stableRateSlope1 == EngineFlags.KEEP_CURRENT ||
-        strategiesParams[i].stableRateSlope2 == EngineFlags.KEEP_CURRENT
-      ) {
-        IV2RateStrategyFactory.RateStrategyParams
-          memory currentStrategyData = RATE_STRATEGIES_FACTORY.getStrategyDataOfAsset(ids[i]);
-
-        if (strategiesParams[i].variableRateSlope1 == EngineFlags.KEEP_CURRENT) {
-          strategiesParams[i].variableRateSlope1 = currentStrategyData.variableRateSlope1;
-        }
-
-        if (strategiesParams[i].variableRateSlope2 == EngineFlags.KEEP_CURRENT) {
-          strategiesParams[i].variableRateSlope2 = currentStrategyData.variableRateSlope2;
-        }
-
-        if (strategiesParams[i].optimalUtilizationRate == EngineFlags.KEEP_CURRENT) {
-          strategiesParams[i].optimalUtilizationRate = currentStrategyData.optimalUtilizationRate;
-        }
-
-        if (strategiesParams[i].baseVariableBorrowRate == EngineFlags.KEEP_CURRENT) {
-          strategiesParams[i].baseVariableBorrowRate = currentStrategyData.baseVariableBorrowRate;
-        }
-
-        if (strategiesParams[i].stableRateSlope1 == EngineFlags.KEEP_CURRENT) {
-          strategiesParams[i].stableRateSlope1 = currentStrategyData.stableRateSlope1;
-        }
-
-        if (strategiesParams[i].stableRateSlope2 == EngineFlags.KEEP_CURRENT) {
-          strategiesParams[i].stableRateSlope2 = currentStrategyData.stableRateSlope2;
-        }
-      }
-    }
-
-    address[] memory strategies = RATE_STRATEGIES_FACTORY.createStrategies(strategiesParams);
-
-    for (uint256 i = 0; i < strategies.length; i++) {
-      POOL_CONFIGURATOR.setReserveInterestRateStrategyAddress(ids[i], strategies[i]);
-    }
+  function _getEngineLibraries() internal view returns (EngineLibraries memory) {
+    return
+      EngineLibraries({
+        listingEngine: LISTING_ENGINE,
+        borrowEngine: BORROW_ENGINE,
+        collateralEngine: COLLATERAL_ENGINE,
+        priceFeedEngine: PRICE_FEED_ENGINE,
+        rateEngine: RATE_ENGINE
+      });
   }
 
-  function _repackRatesUpdate(
-    RateStrategyUpdate[] memory updates
-  ) internal pure returns (AssetsConfig memory) {
-    address[] memory ids = new address[](updates.length);
-    IV2RateStrategyFactory.RateStrategyParams[]
-      memory rates = new IV2RateStrategyFactory.RateStrategyParams[](updates.length);
-
-    for (uint256 i = 0; i < updates.length; i++) {
-      ids[i] = updates[i].asset;
-      rates[i] = updates[i].params;
-    }
-
-    return AssetsConfig({ids: ids, rates: rates});
+  function _getEngineConstants() internal view returns (EngineConstants memory) {
+    return
+      EngineConstants({
+        pool: POOL,
+        poolConfigurator: POOL_CONFIGURATOR,
+        ratesStrategyFactory: RATE_STRATEGY_FACTORY,
+        oracle: ORACLE,
+        rewardsController: REWARDS_CONTROLLER,
+        collector: COLLECTOR
+      });
   }
 }
