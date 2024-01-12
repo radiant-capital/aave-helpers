@@ -5,6 +5,7 @@ import {ListingV2Engine as ListingEngine} from './libraries/ListingV2Engine.sol'
 import {CollateralV2Engine as CollateralEngine} from './libraries/CollateralV2Engine.sol';
 import {BorrowV2Engine as BorrowEngine} from './libraries/BorrowV2Engine.sol';
 import {RateV2Engine as RateEngine} from './libraries/RateV2Engine.sol';
+import {PriceFeedEngine} from '../v3-config-engine/libraries/PriceFeedEngine.sol';
 import {EngineFlags} from '../v3-config-engine/EngineFlags.sol';
 import './IAaveV2ConfigEngine.sol';
 import {Address} from 'solidity-utils/contracts/oz-common/Address.sol';
@@ -113,6 +114,39 @@ contract AaveV2ConfigEngine is IAaveV2ConfigEngine {
     RATE_ENGINE.functionDelegateCall(
       abi.encodeWithSelector(
         RateEngine.executeRateStrategiesUpdate.selector,
+        _getEngineConstants(),
+        updates
+      )
+    );
+  }
+
+  /// @inheritdoc IAaveV2ConfigEngine
+  function updatePriceFeeds(PriceFeedUpdate[] calldata updates) external {
+    PRICE_FEED_ENGINE.functionDelegateCall(
+      abi.encodeWithSelector(
+        PriceFeedEngine.executePriceFeedsUpdate.selector,
+        _getEngineConstants(),
+        updates
+      )
+    );
+  }
+
+  /// @inheritdoc IAaveV2ConfigEngine
+  function updateCollateralSide(CollateralUpdate[] calldata updates) external {
+    COLLATERAL_ENGINE.functionDelegateCall(
+      abi.encodeWithSelector(
+        CollateralEngine.executeCollateralSide.selector,
+        _getEngineConstants(),
+        updates
+      )
+    );
+  }
+
+  /// @inheritdoc IAaveV2ConfigEngine
+  function updateBorrowSide(BorrowUpdate[] calldata updates) external {
+    BORROW_ENGINE.functionDelegateCall(
+      abi.encodeWithSelector(
+        BorrowEngine.executeBorrowSide.selector,
         _getEngineConstants(),
         updates
       )

@@ -196,6 +196,27 @@ interface IAaveV2ConfigEngine {
    */
   function updateRateStrategies(RateStrategyUpdate[] memory updates) external;
 
+  /**
+   * @notice Performs an update of the collateral-related params of the assets, in the Aave pool configured in this engine instance
+   * @param updates `CollateralUpdate[]` list of declarative updates containing the new parameters
+   *   More information on the documentation of the struct.
+   */
+  function updateCollateralSide(CollateralUpdate[] memory updates) external;
+
+  /**
+   * @notice Performs an update of the price feed of the assets, in the Aave pool configured in this engine instance
+   * @param updates `PriceFeedUpdate[]` list of declarative updates containing the new parameters
+   *   More information on the documentation of the struct.
+   */
+  function updatePriceFeeds(PriceFeedUpdate[] memory updates) external;
+
+  /**
+   * @notice Performs an update of the borrow-related params of the assets, in the Aave pool configured in this engine instance
+   * @param updates `BorrowUpdate[]` list of declarative updates containing the new parameters
+   *   More information on the documentation of the struct.
+   */
+  function updateBorrowSide(BorrowUpdate[] memory updates) external;
+
   function RATE_STRATEGY_FACTORY() external view returns (IV2RateStrategyFactory);
 
   function POOL() external view returns (ILendingPool);
